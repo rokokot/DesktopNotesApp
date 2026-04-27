@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Desktop Notes
+GenericName=Sticky Notes
+Comment=Spatial sticky-notes canvas
+Exec=desktop-notes-app
+Icon=io.github.rokokot.DesktopNotesApp
+Terminal=false
+Categories=Office;Utility;
+StartupWMClass=desktop-notes-app
+Keywords=notes;sticky;canvas;markdown;
