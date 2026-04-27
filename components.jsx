@@ -1271,8 +1271,15 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
   useEffect(() => { refCb(el.current); return ()=>refCb(null); }, [refCb]);
 
   const col = NOTE_COLORS.find(c => c.id===note.color) || NOTE_COLORS[0];
-  const bg = tweaks.theme==='paper' ? col.paper : tweaks.theme==='flat' ? col.flat : col.term;
-  const ink = col.ink;
+  // Per-note customColor overrides the preset (set via the prefs popover's
+  // custom color input). When custom, derive ink from luminance so text
+  // stays readable on any user-picked background.
+  const bg = note.customColor || (tweaks.theme==='paper' ? col.paper : tweaks.theme==='flat' ? col.flat : col.term);
+  const ink = (note.customColor && inkFor(note.customColor)) || col.ink;
+  // Per-note typeface and font-size overrides; null/undefined fall back to
+  // the global tweaks and the existing per-theme defaults.
+  const noteFont = note.font || tweaks.font;
+  const noteFontSize = note.fontSize;
 
   const [dragging, setDragging] = useState(false);
   const draggingRef = useRef(false);
@@ -1520,8 +1527,8 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
           // In edit mode, the textarea handles its own scrolling; let it
           // fill the parent without a second scrollbar wrapping it.
           overflow: editing ? 'hidden' : 'auto',
-          fontFamily: tweaks.theme==='terminal' ? T.bodyFont : tweaks.font+', system-ui, sans-serif',
-          fontSize: tweaks.theme==='paper' ? 18 : 13.5,
+          fontFamily: tweaks.theme==='terminal' ? T.bodyFont : noteFont+', system-ui, sans-serif',
+          fontSize: noteFontSize || (tweaks.theme==='paper' ? 18 : 13.5),
           lineHeight: tweaks.theme==='paper' ? 1.35 : 1.5,
           color:ink,
         }}>
@@ -1541,15 +1548,8 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
         )}
       </div>
 
-      <div style={{
-        padding:'5px 10px', display:'flex', alignItems:'center', gap:6, flex:'none',
-        borderTop: tweaks.theme==='terminal' ? `1px solid ${T.panelBorder}` : '1px solid rgba(0,0,0,.05)',
-        background: tweaks.theme==='terminal' ? 'rgba(0,0,0,.2)' : 'transparent',
-        fontSize:10, color:ink, opacity:.75,
-      }}>
-        <div style={{flex:1}}/>
-        <ColorDots current={note.color} onPick={c=>onChange({color:c})} ink={ink}/>
-      </div>
+      {/* Color picker moved to per-card prefs popover (right-click). The
+          old footer was removed since ColorDots was its only content. */}
 
       {/* 8 resize handles: 4 edges + 4 corners. Edges and three corners are
           invisible hit-zones (cursor change reveals them); the SE corner
@@ -1576,23 +1576,16 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
         }}/>
 
       {menu && (
-        <ContextMenu T={T} anchor="fixed" x={menu.x} y={menu.y} onClose={()=>setMenu(null)} items={[
-          {label: (selected && selectedIds && selectedIds.size > 1)
-            ? 'Copy ' + selectedIds.size + ' notes'
-            : 'Copy', onClick: () => onCopy && onCopy()},
-          {divider:true},
-          {label:'Edit title', onClick:()=>setEditingTitle(true)},
-          {label:'Edit body', onClick:()=>setEditing(true)},
-          {label: note.pinned?'Unpin':'Pin to top', onClick:()=>{ if (onTogglePin) onTogglePin(); else onChange({pinned:!note.pinned}); }},
-          window.stickyAPI?.popoutOpen
-            ? {label: 'Pop out to desktop', onClick: () => window.stickyAPI.popoutOpen(note.id)}
-            : null,
-          {divider:true},
-          {label:'Change color ▶', submenu: NOTE_COLORS.map(c=>({label:c.name, dot:c.paper, onClick:()=>onChange({color:c.id})}))},
-          childFolders.length ? {label:'Move to folder ▶', submenu: childFolders.map(f=>({label:f.name, dot:f.hue, onClick:()=>onMoveToFolder(f.id)}))} : null,
-          {divider:true},
-          {label:'Delete…', destructive:true, onClick:onDelete},
-        ].filter(Boolean)}/>
+        <NotePrefsPopover T={T} note={note} x={menu.x} y={menu.y}
+          folder={folder} childFolders={childFolders}
+          onChange={onChange}
+          onMoveToFolder={(fid)=>onMoveToFolder(fid)}
+          onCopy={onCopy}
+          onTogglePin={() => { if (onTogglePin) onTogglePin(); else onChange({pinned:!note.pinned}); }}
+          onDelete={onDelete}
+          onClose={()=>setMenu(null)}
+          isMultiSelect={selected && selectedIds && selectedIds.size > 1}
+          multiSize={selectedIds ? selectedIds.size : 1}/>
       )}
     </div>
   );
@@ -1608,6 +1601,148 @@ function ColorDots({current, onPick, ink}) {
       }}/>
     ))}
   </div>;
+}
+/* ==================================================================== */
+/* NOTE PREFERENCES POPOVER                                              */
+/* Right-click on a sticky note. Combines the note's quick-actions       */
+/* (copy, pin, pop out, delete) with per-note preferences (folder,       */
+/* color w/ custom picker, typeface, font size).                         */
+/* ==================================================================== */
+function NotePrefsPopover({T, note, x, y, folder, childFolders, onChange, onMoveToFolder,
+  onCopy, onTogglePin, onDelete, onClose, isMultiSelect, multiSize}) {
+  const ref = useRef(null);
+  const FONTS = ['Inter', 'Caveat', 'JetBrains Mono', 'Source Serif 4', 'IBM Plex Mono'];
+
+  useEffect(() => {
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const tid = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    document.addEventListener('keydown', onKey);
+    return () => { clearTimeout(tid); document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  // Build the folder dropdown: root + current folder + sibling folders.
+  const allFolders = [{id:'root', name:'All notes', hue:T.accent}];
+  if (folder && folder.id !== 'root') allFolders.push(folder);
+  if (childFolders) childFolders.forEach(f => { if (!allFolders.find(x=>x.id===f.id)) allFolders.push(f); });
+
+  // Clamp position to viewport so the popover never spills off-screen.
+  const px = Math.min(x, window.innerWidth - 270);
+  const py = Math.min(y, window.innerHeight - 380);
+
+  const itemS = {
+    display:'block', width:'100%', textAlign:'left', padding:'7px 10px',
+    background:'transparent', border:'none', color:T.panelText, fontSize:13,
+    cursor:'pointer', borderRadius:4, fontFamily:'inherit',
+  };
+  const labelRow = {display:'flex', alignItems:'center', gap:8, padding:'6px 10px', fontSize:12};
+  const inputS = {
+    flex:'0 1 auto', minWidth:120, padding:'4px 6px',
+    background:T.panelBg, color:T.panelText,
+    border:`1px solid ${T.panelBorder}`, borderRadius:4,
+    fontSize:12, fontFamily:'inherit', outline:'none',
+  };
+
+  return (
+    <div ref={ref} style={{
+      position:'fixed', left:px, top:py, zIndex:30000,
+      width:260,
+      background:T.panelBg, color:T.panelText,
+      border:`1px solid ${T.panelBorder}`, borderRadius:8,
+      boxShadow:'0 12px 32px rgba(0,0,0,.18)',
+      padding:4,
+      fontFamily:'Inter, system-ui, sans-serif',
+    }}>
+      <button style={itemS} onClick={()=>{onCopy && onCopy(); onClose();}}
+        onMouseEnter={e=>e.currentTarget.style.background = withA(T.panelText, .08)}
+        onMouseLeave={e=>e.currentTarget.style.background = 'transparent'}>
+        {isMultiSelect ? `Copy ${multiSize} notes` : 'Copy'}
+      </button>
+      <button style={itemS} onClick={()=>{onTogglePin && onTogglePin(); onClose();}}
+        onMouseEnter={e=>e.currentTarget.style.background = withA(T.panelText, .08)}
+        onMouseLeave={e=>e.currentTarget.style.background = 'transparent'}>
+        {note.pinned ? 'Unpin' : 'Pin to top'}
+      </button>
+      {window.stickyAPI?.popoutOpen && (
+        <button style={itemS} onClick={()=>{window.stickyAPI.popoutOpen(note.id); onClose();}}
+          onMouseEnter={e=>e.currentTarget.style.background = withA(T.panelText, .08)}
+          onMouseLeave={e=>e.currentTarget.style.background = 'transparent'}>
+          Pop out to desktop
+        </button>
+      )}
+      <button style={{...itemS, color:'#dc2626'}} onClick={()=>{onDelete && onDelete(); onClose();}}
+        onMouseEnter={e=>e.currentTarget.style.background = 'rgba(220,38,38,.08)'}
+        onMouseLeave={e=>e.currentTarget.style.background = 'transparent'}>
+        Delete…
+      </button>
+
+      <div style={{height:1, background:T.panelBorder, margin:'4px 0'}}/>
+      <div style={{fontSize:10, textTransform:'uppercase', letterSpacing:1.2, opacity:.55, padding:'8px 10px 4px'}}>
+        Preferences
+      </div>
+
+      <div style={labelRow}>
+        <span style={{flex:1, opacity:.7}}>Folder</span>
+        <select value={note.folder || 'root'}
+          onChange={e=>onMoveToFolder(e.target.value)} style={inputS}>
+          {allFolders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      </div>
+
+      <div style={{...labelRow, alignItems:'flex-start'}}>
+        <span style={{flex:'none', opacity:.7, paddingTop:4}}>Color</span>
+        <div style={{flex:1, display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-end'}}>
+          {NOTE_COLORS.slice(0, 6).map(c => (
+            <button key={c.id} title={c.name}
+              onClick={()=>onChange({color:c.id, customColor:null})}
+              style={{
+                width:18, height:18, borderRadius:'50%',
+                background: c.paper,
+                border: (note.color===c.id && !note.customColor)
+                  ? `2px solid ${T.panelText}` : '1px solid rgba(0,0,0,.15)',
+                cursor:'pointer', padding:0,
+              }}/>
+          ))}
+          {/* Custom-color slot. The conic gradient gives a "color wheel"
+              affordance when no custom value is set; once a color is picked
+              it shows that flat color. The native <input type="color"> is
+              layered on top at zero opacity to capture the click and open
+              the OS color picker (which on most platforms includes a wheel,
+              hex input, and recent colors). */}
+          <label style={{
+            width:18, height:18, borderRadius:'50%', position:'relative',
+            background: note.customColor || 'conic-gradient(from 0deg, red, yellow, lime, cyan, blue, magenta, red)',
+            border: note.customColor ? `2px solid ${T.panelText}` : '1px solid rgba(0,0,0,.15)',
+            cursor:'pointer', display:'inline-block',
+          }} title="Custom color">
+            <input type="color"
+              value={note.customColor || '#ffeaa7'}
+              onChange={e=>onChange({customColor: e.target.value})}
+              style={{position:'absolute', inset:0, opacity:0, width:'100%', height:'100%', cursor:'pointer'}}/>
+          </label>
+        </div>
+      </div>
+
+      <div style={labelRow}>
+        <span style={{flex:1, opacity:.7}}>Typeface</span>
+        <select value={note.font || ''}
+          onChange={e=>onChange({font: e.target.value || null})}
+          style={inputS}>
+          <option value="">Default</option>
+          {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
+
+      <div style={labelRow}>
+        <span style={{flex:1, opacity:.7}}>Font size</span>
+        <input type="number" min="10" max="28" step="1"
+          value={note.fontSize || ''}
+          placeholder="auto"
+          onChange={e=>onChange({fontSize: e.target.value ? Number(e.target.value) : null})}
+          style={{...inputS, width:64, minWidth:0}}/>
+      </div>
+    </div>
+  );
 }
 /* ==================================================================== */
 /* CONTEXT MENU                                                          */
@@ -2621,4 +2756,4 @@ function PopoutNoteApp({ noteId }) {
   );
 }
 
-Object.assign(window, { AppGlyph, ColorDots, ConfirmDialog, ContextMenu, Desktop, EmptyState, FolderIcon, FolderTree, FoldersDrawer, HomeIcon, IMPORT_FROM_IMAGE_PROMPT, ImportFromImageDialog, InfoDialog, KeyHint, Label, Loading, MOBILE_BANNER_DISMISSED_KEY, MOBILE_BANNER_MAX_WIDTH, MobileDemoBanner, PasteErrorToast, PopoutNoteApp, Segmented, StatusBar, StickyNote, TopChrome, TweakPanel, UpdateBanner, btnS, kbdS, zBtn });
+Object.assign(window, { AppGlyph, ColorDots, ConfirmDialog, ContextMenu, Desktop, EmptyState, FolderIcon, FolderTree, FoldersDrawer, HomeIcon, IMPORT_FROM_IMAGE_PROMPT, ImportFromImageDialog, InfoDialog, KeyHint, Label, Loading, MOBILE_BANNER_DISMISSED_KEY, MOBILE_BANNER_MAX_WIDTH, MobileDemoBanner, NotePrefsPopover, PasteErrorToast, PopoutNoteApp, Segmented, StatusBar, StickyNote, TopChrome, TweakPanel, UpdateBanner, btnS, kbdS, zBtn });

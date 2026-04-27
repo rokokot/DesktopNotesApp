@@ -194,6 +194,19 @@ function withA(hex, a) {
   const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
   return `rgba(${r},${g},${b},${a})`;
 }
+// Pick a readable text color (near-black or near-white) for an arbitrary hex
+// background. Used when a note has a custom color so foreground text stays
+// legible regardless of what the user chose. Falls back to null on bad input
+// so callers can use the theme's default ink.
+function inkFor(hex) {
+  if (typeof hex !== 'string') return null;
+  const m = hex.replace('#','').match(/^([0-9a-f]{6})$/i);
+  if (!m) return null;
+  const v = m[1];
+  const r = parseInt(v.slice(0,2),16), g = parseInt(v.slice(2,4),16), b = parseInt(v.slice(4,6),16);
+  // Perceived luminance (Rec. 601). Threshold 150 chosen empirically.
+  return (r*0.299 + g*0.587 + b*0.114) > 150 ? '#1a1a1a' : '#f5f5f5';
+}
 const STICKY_CLIPBOARD_MARKER = '<!-- sticky-notes/v1 -->';
 
 function notesToClipboardText(notes, links) {
@@ -255,4 +268,4 @@ function downloadUrlForPlatform(version) {
 const MOBILE_BANNER_DISMISSED_KEY = 'stickies.mobileBannerDismissed';
 const MOBILE_BANNER_MAX_WIDTH = 640;
 
-Object.assign(window, { FOLDER_HUES, MOBILE_BANNER_DISMISSED_KEY, MOBILE_BANNER_MAX_WIDTH, NOTE_COLORS, SEED, STICKY_CLIPBOARD_MARKER, TWEAK_DEFAULTS, clipboardTextToNotes, cmpSemver, downloadJSON, downloadUrlForPlatform, hashRot, mdToHtml, notesToClipboardText, pickJSONFile, themeTokens, uid, withA, withDefaults });
+Object.assign(window, { FOLDER_HUES, MOBILE_BANNER_DISMISSED_KEY, MOBILE_BANNER_MAX_WIDTH, NOTE_COLORS, SEED, STICKY_CLIPBOARD_MARKER, TWEAK_DEFAULTS, clipboardTextToNotes, cmpSemver, downloadJSON, downloadUrlForPlatform, hashRot, inkFor, mdToHtml, notesToClipboardText, pickJSONFile, themeTokens, uid, withA, withDefaults });
