@@ -1344,8 +1344,15 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
       style={{
         position:'absolute', left:note.x, top:note.y, width:note.w, height:note.h,
         background: bg, color: ink, zIndex: 10 + (note.z||0),
-        borderRadius:T.noteRadius, boxShadow:T.noteShadow, transform:`rotate(${rot}deg)`,
-        outline: selected ? `2px solid ${T.accent}` : 'none', outlineOffset:1,
+        borderRadius:T.noteRadius,
+        // Selection: 2px ring in folder color + soft outer glow at 20%.
+        // Falls back to T.accent when the note has no folder color.
+        boxShadow: selected
+          ? `${T.noteShadow}, 0 0 0 5px ${withA(folder?.hue || T.accent, 0.22)}`
+          : T.noteShadow,
+        transform:`rotate(${rot}deg)`,
+        outline: selected ? `2px solid ${folder?.hue || T.accent}` : 'none',
+        outlineOffset: 1,
         display:'flex', flexDirection:'column', overflow:'hidden',
       }}>
       <div onPointerDown={onHeaderDown} onDoubleClick={()=>setEditingTitle(true)}
