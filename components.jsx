@@ -81,8 +81,7 @@ function LucideFolder({size=16, color='currentColor', fill=null, open=false, str
     <svg width={size} height={size} viewBox="0 0 24 24" fill={fill||'none'}
       stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
       style={{display:'block'}}>
-      <path d="M6 14 2.973 18.7c-.673.973.346 2.207 1.443 1.748L20 14"/>
-      <path d="M2 8a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 12.07 9H20a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/>
+      <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>
     </svg>
   );
   return (
@@ -90,6 +89,58 @@ function LucideFolder({size=16, color='currentColor', fill=null, open=false, str
       stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
       style={{display:'block'}}>
       <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+    </svg>
+  );
+}
+function LucideSave({size=14, color='currentColor', strokeWidth=2}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={{display:'block'}}>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+      <path d="M17 21v-8H7v8"/>
+      <path d="M7 3v5h8"/>
+    </svg>
+  );
+}
+function LucideChevronDown({size=12, color='currentColor', strokeWidth=2}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={{display:'block'}}>
+      <path d="m6 9 6 6 6-6"/>
+    </svg>
+  );
+}
+function LucideSettings({size=14, color='currentColor', strokeWidth=2}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={{display:'block'}}>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+}
+function LucidePanelRightClose({size=16, color='currentColor', strokeWidth=2}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={{display:'block'}}>
+      <rect width="18" height="18" x="3" y="3" rx="2"/>
+      <path d="M15 3v18"/>
+      <path d="m8 9 3 3-3 3"/>
+    </svg>
+  );
+}
+function LucidePanelRightOpen({size=16, color='currentColor', strokeWidth=2}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      style={{display:'block'}}>
+      <rect width="18" height="18" x="3" y="3" rx="2"/>
+      <path d="M15 3v18"/>
+      <path d="m10 15-3-3 3-3"/>
     </svg>
   );
 }
@@ -510,7 +561,7 @@ function TopChrome({T, tweaks, currentFolderName, query, setQuery, onNewNote, on
     }}>
       <AppGlyph T={T} isTerm={isTerm}/>
       <div style={{fontWeight:600, fontSize:14, letterSpacing:isTerm?0.5:0, display: narrow?'none':undefined}}>
-        {isTerm ? 'stickies' : 'Sticky Notes'}
+        {isTerm ? 'notes' : 'Desktop Notes'}
       </div>
 
       <div style={{width:1, height:22, background:T.panelBorder, margin:'0 8px', display: narrow?'none':undefined}}/>
@@ -538,12 +589,18 @@ function TopChrome({T, tweaks, currentFolderName, query, setQuery, onNewNote, on
 
       <div data-backup-menu style={{position:'relative', display: narrow?'none':undefined}}>
         <button onClick={()=>setBackupOpen(o=>!o)} title="Save or restore a backup" style={{
-          height:30, padding:'0 12px', borderRadius: 0,
-          background:'#000', color:'#fff', border:`1px solid ${T.panelBorder}`,
+          height:30, padding:'0 12px', borderRadius:6,
+          background: isTerm ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+          color: T.panelText,
+          border: `1px solid ${T.panelBorder}`,
           fontWeight:500, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:6,
           fontFamily:'Inter, system-ui, sans-serif',
-        }}>
-          {isTerm?'backup':'Backup'} <span style={{fontSize:9, opacity:.7, marginTop:1}}>▾</span>
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = isTerm ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}
+        onMouseLeave={e => e.currentTarget.style.background = isTerm ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}>
+          <LucideSave size={14} color="currentColor" strokeWidth={1.85}/>
+          {isTerm?'backup':'Backup'}
+          <LucideChevronDown size={12} color="currentColor" strokeWidth={2}/>
         </button>
         {backupOpen && (
           <div data-backup-menu style={{
