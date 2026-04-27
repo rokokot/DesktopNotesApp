@@ -1,6 +1,6 @@
 # Desktop Notes
 
-Spatial sticky-notes canvas. Electron + React, plain JSX served via in-browser Babel. No bundler.
+Sticky-notes canvas. Electron + React, plain JSX served via in-browser Babel
 
 ## Stack
 
