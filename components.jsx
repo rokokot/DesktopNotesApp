@@ -1423,7 +1423,10 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
 
       <div onDoubleClick={()=>setEditing(true)}
         style={{
-          flex:1, padding:'10px 14px', overflow:'auto',
+          flex:1, padding:'10px 14px',
+          // In edit mode, the textarea handles its own scrolling; let it
+          // fill the parent without a second scrollbar wrapping it.
+          overflow: editing ? 'hidden' : 'auto',
           fontFamily: tweaks.theme==='terminal' ? T.bodyFont : tweaks.font+', system-ui, sans-serif',
           fontSize: tweaks.theme==='paper' ? 18 : 13.5,
           lineHeight: tweaks.theme==='paper' ? 1.35 : 1.5,
@@ -1437,7 +1440,8 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
               if (e.key==='Escape') { onChange({body:origBodyRef.current}); setEditing(false); }
             }}
             style={{width:'100%', height:'100%', resize:'none', border:'none', outline:'none',
-              background:'transparent', color:'inherit', font:'inherit', lineHeight:'inherit'}}
+              background:'transparent', color:'inherit', font:'inherit', lineHeight:'inherit',
+              overflow:'auto'}}
           />
         ) : (
           <div className="md-body" dangerouslySetInnerHTML={{__html: mdToHtml(note.body)}}/>
@@ -2388,7 +2392,8 @@ function PopoutNoteApp({ noteId }) {
           setEditingBody(true);
         }}
         style={{
-          flex:1, padding:'10px 14px', overflow:'auto',
+          flex:1, padding:'10px 14px',
+          overflow: editingBody ? 'hidden' : 'auto',
           fontSize:14, lineHeight:1.45,
         }}>
         {editingBody ? (
@@ -2411,6 +2416,7 @@ function PopoutNoteApp({ noteId }) {
               background:'transparent', color:'inherit',
               border:'none', outline:'none', resize:'none',
               font:'inherit', fontSize:'inherit', lineHeight:'inherit',
+              overflow:'auto',
             }}
           />
         ) : note.body ? (
