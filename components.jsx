@@ -1054,7 +1054,7 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
     // Reserve space for the folders drawer (if open) so notes don't end up under it
     // Reserve space for the folders drawer (if open) so notes don't end up
     // under it. drawerOpen comes from the hoisted store state in the parent.
-    const rightReserve = drawerOpen ? 320 : 0; // 300 width + 10 margin + gap
+    const rightReserve = drawerOpen ? 320 : 44; // expanded: 300 width + 10 margin + gap; collapsed: 44px icon strip
     const pad = 80;
     const availW = rect.width - rightReserve - pad*2;
     const availH = rect.height - pad*2;
@@ -1992,17 +1992,97 @@ function FoldersDrawer({T, tweaks, folders, notes, currentFolder, setCurrentFold
   return (
     <>
       {!open && (
-        <button onClick={()=>setOpen(true)} style={{
-          position:'absolute', right:0, top:72, zIndex:19000,
-          width:32, height:96, background:T.panelBg, color:T.panelText,
-          border:`1px solid ${T.panelBorder}`, borderRight:'none',
-          borderRadius: 0, cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          fontSize:11, fontWeight:700, letterSpacing:1.5, boxShadow:'0 4px 14px rgba(0,0,0,.08)',
+        // Collapsed: 44px vertical icon strip on the right. Top-to-bottom:
+        // expand toggle, "All notes" home, folder color-dots, new-folder +.
+        // Click on a dot navigates to that folder; the active folder gets a
+        // ring + filled dot so the current selection is always visible.
+        <div style={{
+          position:'absolute', right:0, top:62, bottom:36, width:44, zIndex:19000,
+          background: isPaper ? '#f6ecd8' : T.panelBg,
+          borderLeft:`1px solid ${T.panelBorder}`,
+          display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+          padding:'8px 0', boxShadow:'-2px 0 8px rgba(0,0,0,.06)',
           fontFamily:'Inter, system-ui, sans-serif',
         }}>
-          <span style={{writingMode:'vertical-rl', transform:'rotate(180deg)'}}>FOLDERS · {realFolders.length}</span>
-        </button>
+          <button onClick={()=>setOpen(true)} title="Show folders panel" style={{
+            width:32, height:32, background:'transparent', border:'none', cursor:'pointer',
+            color:T.panelText, display:'grid', placeItems:'center', borderRadius:6,
+          }}
+            onMouseEnter={e=>e.currentTarget.style.background = withA(T.panelText, .08)}
+            onMouseLeave={e=>e.currentTarget.style.background = 'transparent'}>
+            <LucidePanelRightOpen size={16} color="currentColor" strokeWidth={1.85}/>
+          </button>
+          <div style={{height:1, width:24, background:T.panelBorder, margin:'2px 0'}}/>
+          <button onClick={()=>setCurrentFolder('root')} title="All notes" style={{
+            width:32, height:32, background:currentFolder==='root' ? withA(T.accent, .15) : 'transparent',
+            border:'none', cursor:'pointer', color:T.panelText,
+            display:'grid', placeItems:'center', borderRadius:6,
+            outline: currentFolder==='root' ? `1.5px solid ${withA(T.accent, .5)}` : 'none',
+          }}
+            onMouseEnter={e=>{ if (currentFolder!=='root') e.currentTarget.style.background = withA(T.panelText, .08); }}
+            onMouseLeave={e=>{ if (currentFolder!=='root') e.currentTarget.style.background = 'transparent'; }}>
+            <HomeIcon size={15} color="currentColor"/>
+          </button>
+          <div style={{flex:'1 1 auto', overflowY:'auto', overflowX:'hidden',
+            display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+            padding:'2px 0', width:'100%'}}>
+            {realFolders.map(f => {
+              const isActive = currentFolder === f.id;
+              return (
+                <button key={f.id}
+                  data-folder-id={f.id}
+                  onClick={()=>setCurrentFolder(f.id)}
+                  onContextMenu={e=>{e.preventDefault(); e.stopPropagation(); setFolderMenu({x:e.clientX, y:e.clientY, folderId:f.id});}}
+                  title={`${f.name} · ${notes.filter(n=>n.folder===f.id).length} notes`}
+                  onDragOver={e=>{
+                    if (!e.dataTransfer.types.includes('note-ids')) return;
+                    e.preventDefault();
+                    setDragOverFolderId(f.id);
+                  }}
+                  onDragLeave={()=>{ if (dragOverFolderId === f.id) setDragOverFolderId(null); }}
+                  onDrop={e=>{
+                    setDragOverFolderId(null);
+                    const raw = e.dataTransfer.getData('note-ids');
+                    if (!raw) return;
+                    const ids = raw.split(',').filter(Boolean);
+                    if (ids.length > 1 && onDropNotesOnFolder) onDropNotesOnFolder(ids, f.id);
+                    else if (ids.length === 1) onDropNoteOnFolder(ids[0], f.id);
+                  }}
+                  style={{
+                    width:32, height:32, padding:0, background:'transparent',
+                    border:'none', cursor:'pointer', display:'grid', placeItems:'center',
+                    borderRadius:6,
+                    outline: dragOverFolderId === f.id ? `1.5px dashed ${T.accent}`
+                          : isActive ? `1.5px solid ${withA(f.hue, .65)}` : 'none',
+                    background: isActive ? withA(f.hue, .15) : 'transparent',
+                  }}
+                  onMouseEnter={e=>{ if (!isActive) e.currentTarget.style.background = withA(T.panelText, .08); }}
+                  onMouseLeave={e=>{ if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
+                  <span style={{
+                    width:14, height:14, borderRadius:'50%',
+                    background: f.hue,
+                    boxShadow: isActive ? `0 0 0 1.5px ${T.panelBg}` : 'none',
+                  }}/>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{height:1, width:24, background:T.panelBorder, margin:'2px 0'}}/>
+          <button onClick={()=>onCreateFolder()} title="New folder" style={{
+            width:32, height:32, background:'transparent', border:'none', cursor:'pointer',
+            color:T.muted, display:'grid', placeItems:'center', borderRadius:6,
+          }}
+            onMouseEnter={e=>{ e.currentTarget.style.background = withA(T.panelText, .08); e.currentTarget.style.color = T.panelText; }}
+            onMouseLeave={e=>{ e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.muted; }}>
+            <LucidePlus size={15} color="currentColor" strokeWidth={2}/>
+          </button>
+          {folderMenu && (
+            <ContextMenu T={T} anchor="fixed" x={folderMenu.x} y={folderMenu.y} onClose={()=>setFolderMenu(null)} items={[
+              {label:'Rename', onClick:()=>setRenamingFolder(folderMenu.folderId)},
+              {label:'Delete folder', destructive:true, onClick:()=>onDeleteFolder(folderMenu.folderId)},
+            ]}/>
+          )}
+        </div>
       )}
 
       {open && (
