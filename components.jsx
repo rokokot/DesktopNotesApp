@@ -1298,12 +1298,22 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
     window.addEventListener('pointercancel', up);
   };
 
-  const onResize = (e) => {
+  const onResize = (dir) => (e) => {
     e.stopPropagation();
     e.preventDefault();
     const sX = e.clientX, sY = e.clientY;
-    const { w, h } = note;
-    const move = (ev) => onChange({ w: Math.max(180, w+(ev.clientX-sX)/zRef.current), h: Math.max(120, h+(ev.clientY-sY)/zRef.current) });
+    const { x, y, w, h } = note;
+    const minW = 180, minH = 120;
+    const move = (ev) => {
+      const dx = (ev.clientX - sX) / zRef.current;
+      const dy = (ev.clientY - sY) / zRef.current;
+      let nx = x, ny = y, nw = w, nh = h;
+      if (dir.includes('e')) nw = Math.max(minW, w + dx);
+      if (dir.includes('w')) { nw = Math.max(minW, w - dx); nx = x + (w - nw); }
+      if (dir.includes('s')) nh = Math.max(minH, h + dy);
+      if (dir.includes('n')) { nh = Math.max(minH, h - dy); ny = y + (h - nh); }
+      onChange({ x: nx, y: ny, w: nw, h: nh });
+    };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -1477,7 +1487,26 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
         <ColorDots current={note.color} onPick={c=>onChange({color:c})} ink={ink}/>
       </div>
 
-      <div onPointerDown={onResize}
+      {/* 8 resize handles: 4 edges + 4 corners. Edges and three corners are
+          invisible hit-zones (cursor change reveals them); the SE corner
+          keeps the visible diagonal-stripe marker so the affordance stays
+          discoverable. Edge zones are inset 8px so they don't overlap the
+          corner zones. */}
+      <div onPointerDown={onResize('n')}
+        style={{position:'absolute', top:0, left:8, right:8, height:6, cursor:'ns-resize'}}/>
+      <div onPointerDown={onResize('s')}
+        style={{position:'absolute', bottom:0, left:8, right:8, height:6, cursor:'ns-resize'}}/>
+      <div onPointerDown={onResize('w')}
+        style={{position:'absolute', left:0, top:8, bottom:8, width:6, cursor:'ew-resize'}}/>
+      <div onPointerDown={onResize('e')}
+        style={{position:'absolute', right:0, top:8, bottom:8, width:6, cursor:'ew-resize'}}/>
+      <div onPointerDown={onResize('nw')}
+        style={{position:'absolute', top:0, left:0, width:10, height:10, cursor:'nwse-resize'}}/>
+      <div onPointerDown={onResize('ne')}
+        style={{position:'absolute', top:0, right:0, width:10, height:10, cursor:'nesw-resize'}}/>
+      <div onPointerDown={onResize('sw')}
+        style={{position:'absolute', bottom:0, left:0, width:10, height:10, cursor:'nesw-resize'}}/>
+      <div onPointerDown={onResize('se')}
         style={{position:'absolute', right:0, bottom:0, width:14, height:14, cursor:'nwse-resize',
           background: `linear-gradient(135deg, transparent 40%, ${withA(ink,0.25)} 40%, ${withA(ink,0.25)} 50%, transparent 50%, transparent 60%, ${withA(ink,0.25)} 60%, ${withA(ink,0.25)} 70%, transparent 70%)`,
         }}/>
