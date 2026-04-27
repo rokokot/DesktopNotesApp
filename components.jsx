@@ -755,7 +755,7 @@ function KeyHint({T, keys, label}) {
 /* ==================================================================== */
 /* DESKTOP (canvas with folder tiles + sticky notes)                     */
 /* ==================================================================== */
-function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
+function Desktop({T, tweaks, currentFolder, setCurrentFolder, folders, notes, allNotes, noteRefs,
   updateNote, bringToFront, bringGroupToFront, focusNote, onDeleteNote, selectedIds, setSelectedIds, setNotes,
   jumpToNote, moveNoteToFolder, moveNotesToFolder, onCreateNote, onCopyNotes,
   view, setView, drawerOpen, takeSnapshot}) {
@@ -1119,6 +1119,7 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
         {/* Sticky notes */}
         {notes.map(n => (
           <StickyNote key={n.id} note={n} T={T} tweaks={tweaks} folder={folders[n.folder]}
+            onJumpToFolder={()=>setCurrentFolder(n.folder || 'root')}
             refCb={(el)=>{ noteRefs.current[n.id] = el; }}
             selected={selectedIds.has(n.id)}
             selectedIds={selectedIds}
@@ -1231,7 +1232,7 @@ function kbdS(T) { return {fontFamily:'ui-monospace, monospace', fontSize:11, pa
 /* STICKY NOTE                                                           */
 /* ==================================================================== */
 function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setSelectedIds, setNotes,
-  bringGroupToFront,
+  bringGroupToFront, onJumpToFolder,
   onFocus, onChange, onTogglePin, onDelete, childFolders, onMoveToFolder, onMoveNotesToFolder, zoom=1,
   allNotes=[], onCopy}) {
   const zRef = useRef(zoom); zRef.current = zoom;
@@ -1443,7 +1444,22 @@ function StickyNote({note, T, tweaks, folder, refCb, selected, selectedIds, setS
           style={{...btnS(ink), padding:2}}>
           <LucidePin size={16} color={ink} filled={!!note.pinned} strokeWidth={1.75}/>
         </button>
-        {folder && <span title={folder.name} style={{width:6, height:6, background:folder.hue, borderRadius:'50%', flex:'none'}}/>}
+        {folder && (
+          <button
+            onPointerDown={e=>{ e.stopPropagation(); btnDownRef.current = {x:e.clientX, y:e.clientY}; }}
+            onClick={e=>{
+              e.stopPropagation();
+              const d = btnDownRef.current; btnDownRef.current = null;
+              if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 6) { e.preventDefault(); return; }
+              if (onJumpToFolder) onJumpToFolder();
+            }}
+            title={`${folder.name} · jump to folder`}
+            style={{
+              width:10, height:10, padding:0, borderRadius:'50%',
+              background:folder.hue, border:'none', cursor:'pointer', flex:'none',
+              boxShadow:`0 0 0 1px ${withA(ink, .15)}`,
+            }}/>
+        )}
         {editingTitle ? (
           <input autoFocus value={note.title}
             onChange={e=>onChange({title:e.target.value})}
@@ -2568,6 +2584,11 @@ function PopoutNoteApp({ noteId }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const [locked, setLocked] = useState(false);
+  // Catalogue of all notes + folders, fetched once via IPC. Powers the
+  // "open another note" menu when the user clicks the folder dot in the
+  // popout header.
+  const [catalogue, setCatalogue] = useState({notes:[], folders:[]});
+  const [openerMenu, setOpenerMenu] = useState(null); // {x,y} | null
   const titleInputRef = useRef(null);
   const bodyInputRef  = useRef(null);
   const origBodyRef   = useRef('');
@@ -2621,6 +2642,18 @@ function PopoutNoteApp({ noteId }) {
 
   const close = () => window.stickyAPI?.popoutClose?.(noteId);
 
+  // Lazily fetch the all-notes catalogue the first time the user opens the
+  // "open another note" menu. Refresh on each open so newly-created notes
+  // show up without needing to re-launch the popout.
+  const openOpenerMenu = useCallback(async (x, y) => {
+    if (!window.stickyAPI?.popoutListNotes) return;
+    try {
+      const data = await window.stickyAPI.popoutListNotes();
+      setCatalogue(data || {notes:[], folders:[]});
+    } catch {/* keep stale catalogue */}
+    setOpenerMenu({x, y});
+  }, []);
+
   if (missing) {
     return (
       <div style={{
@@ -2644,8 +2677,14 @@ function PopoutNoteApp({ noteId }) {
   if (!note) return null;
 
   const col = NOTE_COLORS.find(c => c.id === note.color) || NOTE_COLORS[0];
-  const bg  = col.paper;
-  const ink = col.ink;
+  const bg  = note.customColor || col.paper;
+  const ink = (note.customColor && inkFor(note.customColor)) || col.ink;
+  // Folder hue for the header dot. We don't have a folders prop in popout
+  // mode (popouts are rendered standalone), so we look it up from the
+  // catalogue once it's fetched. Until then the dot uses a neutral fallback.
+  const folderEntry = catalogue.folders.find(f => f.id === (note.folder || 'root'));
+  const folderHue = folderEntry ? folderEntry.hue : '#888';
+  const folderName = folderEntry ? folderEntry.name : 'All notes';
 
   return (
     <div style={{
@@ -2665,6 +2704,15 @@ function PopoutNoteApp({ noteId }) {
           userSelect:'none', flex:'none',
           cursor: editingTitle ? 'text' : (locked ? 'default' : 'grab'),
         }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); openOpenerMenu(e.clientX, e.clientY); }}
+          title={`${folderName} · open another note`}
+          style={{
+            WebkitAppRegion:'no-drag',
+            width:12, height:12, padding:0, borderRadius:'50%',
+            background:folderHue, border:'none', cursor:'pointer', flex:'none',
+            boxShadow:`0 0 0 1px rgba(0,0,0,.15)`,
+          }}/>
         {editingTitle ? (
           <input
             autoFocus
@@ -2752,6 +2800,94 @@ function PopoutNoteApp({ noteId }) {
           <div style={{opacity:.4}}>Double-click to edit</div>
         )}
       </div>
+      {openerMenu && (
+        <PopoutOpenerMenu
+          x={openerMenu.x} y={openerMenu.y}
+          ink={ink} bg={bg}
+          notes={catalogue.notes}
+          folders={catalogue.folders}
+          currentNoteId={noteId}
+          onPick={(id) => { window.stickyAPI?.popoutOpen?.(id); setOpenerMenu(null); }}
+          onClose={() => setOpenerMenu(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Menu shown when the user clicks the folder dot in a popout's header.
+   Lists every note in the store, grouped by folder, so they can pop out
+   another note without going back to the main window. */
+function PopoutOpenerMenu({x, y, ink, bg, notes, folders, currentNoteId, onPick, onClose}) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const tid = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    document.addEventListener('keydown', onKey);
+    return () => { clearTimeout(tid); document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  // Group notes by folder; "All notes" placeholder folder for the root.
+  const grouped = {};
+  notes.forEach(n => {
+    const fid = n.folder || 'root';
+    (grouped[fid] = grouped[fid] || []).push(n);
+  });
+  const orderedFolders = [
+    {id:'root', name:'All notes', hue:'#888'},
+    ...folders.filter(f => f.id !== 'root'),
+  ].filter(f => grouped[f.id] && grouped[f.id].length);
+
+  // Clamp position so the menu stays on screen.
+  const px = Math.min(x, window.innerWidth - 260);
+  const py = Math.min(y + 4, window.innerHeight - 360);
+
+  return (
+    <div ref={ref} style={{
+      position:'fixed', left:px, top:py, zIndex:30000,
+      width:240, maxHeight:340, overflowY:'auto',
+      background: bg, color: ink,
+      border:'1px solid rgba(0,0,0,.18)', borderRadius:8,
+      boxShadow:'0 12px 32px rgba(0,0,0,.25)',
+      padding:4, fontFamily:'Inter, system-ui, sans-serif', fontSize:13,
+    }}>
+      {orderedFolders.length === 0 && (
+        <div style={{padding:'8px 10px', opacity:.5}}>No other notes</div>
+      )}
+      {orderedFolders.map(f => (
+        <div key={f.id}>
+          <div style={{
+            display:'flex', alignItems:'center', gap:6,
+            padding:'6px 10px 4px', fontSize:10,
+            textTransform:'uppercase', letterSpacing:1.2, opacity:.55,
+          }}>
+            <span style={{width:8, height:8, borderRadius:'50%', background:f.hue}}/>
+            {f.name}
+          </div>
+          {grouped[f.id].map(n => {
+            const isCurrent = n.id === currentNoteId;
+            return (
+              <button key={n.id} disabled={isCurrent}
+                onClick={() => onPick(n.id)}
+                style={{
+                  display:'block', width:'100%', textAlign:'left',
+                  padding:'6px 10px', background:'transparent',
+                  border:'none', color:'inherit',
+                  font:'inherit', fontSize:13, cursor: isCurrent ? 'default' : 'pointer',
+                  opacity: isCurrent ? .4 : 1,
+                  borderRadius:4,
+                  whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                }}
+                onMouseEnter={e=>{ if (!isCurrent) e.currentTarget.style.background = 'rgba(0,0,0,.06)'; }}
+                onMouseLeave={e=>{ if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}>
+                {n.title || <span style={{opacity:.5}}>Untitled</span>}
+                {isCurrent && <span style={{opacity:.6, marginLeft:6}}>· current</span>}
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }

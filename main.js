@@ -424,6 +424,25 @@ ipcMain.handle('popout:request-note', (_e, noteId) => {
   return getNoteById(noteId);
 });
 
+// Popout asks for the catalogue of notes + folders so it can render the
+// "open another note" menu (triggered by clicking the folder dot in the
+// popout header). Returns a slim shape — title, folder, color — to keep
+// IPC traffic small. Folders carry name + hue for the menu header label
+// and color swatch.
+ipcMain.handle('popout:list-notes', () => {
+  const store = loadCurrentStore();
+  const notes = (store.notes || []).map(n => ({
+    id: n.id,
+    title: n.title || '',
+    folder: n.folder || 'root',
+    color: n.color,
+    customColor: n.customColor || null,
+  }));
+  const folders = store.folders || {};
+  const folderList = Object.values(folders).map(f => ({ id: f.id, name: f.name, hue: f.hue }));
+  return { notes, folders: folderList };
+});
+
 // Popout has been edited by the user; forward the patch to the canvas
 // renderer, which is the authority for the store. Also patch the cache so
 // a freshly-spawned popout reading the same note sees the latest value.

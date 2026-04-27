@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('stickyAPI', {
   popoutClose:         (noteId)         => ipcRenderer.invoke('popout:close', noteId),
   popoutEdit:          (noteId, patch)  => ipcRenderer.invoke('popout:edit', noteId, patch),
   popoutRequestNote:   (noteId)         => ipcRenderer.invoke('popout:request-note', noteId),
+  popoutListNotes:     ()               => ipcRenderer.invoke('popout:list-notes'),
   popoutSetLocked:     (noteId, locked) => ipcRenderer.invoke('popout:set-locked', noteId, locked),
   onPopoutNoteUpdated: (cb) => {
     const wrapped = (_e, note) => cb(note);

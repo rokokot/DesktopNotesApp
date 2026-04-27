@@ -621,6 +621,7 @@ function AppInner({ store, setKey, exportNow, importNow, takeSnapshot, undo, red
 
       <Desktop T={T} tweaks={tweaks}
         currentFolder={currentFolder}
+        setCurrentFolder={setCurrentFolder}
         folders={folders}
         notes={filteredNotes}
         allNotes={notes}
