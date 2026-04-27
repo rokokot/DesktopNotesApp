@@ -747,21 +747,24 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
   });
 
   const onWheel = (e) => {
-    // Zoom is gated on Ctrl/Cmd+wheel only. Plain wheel passes through so
-    // long note bodies (with overflow scroll) and the folders drawer can
-    // scroll naturally instead of unexpectedly zooming the canvas. The
-    // global wheel guard at the top of AppInner already preventDefaults
-    // Ctrl/Cmd+wheel so the host browser's page-zoom doesn't fire.
-    if (!(e.ctrlKey || e.metaKey)) return;
+    // Plain wheel zooms (centered on cursor). If the wheel is over a
+    // scrollable element with actual overflow (e.g. a long note body), let
+    // it scroll natively instead — the canvas only zooms when the wheel
+    // happens over empty space or a non-scrolling region.
     if (e.target.matches('textarea, input, [contenteditable="true"]')) return;
+    let el = e.target;
+    while (el && el !== deskRef.current && el.nodeType === 1) {
+      const cs = getComputedStyle(el);
+      const ovY = cs.overflowY;
+      if ((ovY === 'auto' || ovY === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+        return; // native scroll wins
+      }
+      el = el.parentNode;
+    }
     e.preventDefault();
     const rect = deskRef.current.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    // Halved rate compared to the previous default (was 0.01) — single
-    // mouse-wheel notches felt too aggressive, jumping multiple zoom levels.
-    // Trackpad pinch (Ctrl+wheel synthesised) still feels responsive; mouse
-    // wheels now step by a more controllable amount per notch.
     const factor = Math.exp(-e.deltaY * 0.005);
     setView(v => {
       const nz = Math.max(0.25, Math.min(3, v.z * factor));
@@ -778,13 +781,21 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
       panRef.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
       return;
     }
-    // Plain left-drag on empty canvas = marquee selection
+    // Empty-canvas left-drag: Shift+drag = marquee, plain drag = pan.
     if (e.button === 0 && (e.target.id==='desk' || e.target.id==='desk-inner' || e.target.id==='desk-grid')) {
       e.preventDefault();
-      const rect = deskRef.current.getBoundingClientRect();
-      const wx = (e.clientX - rect.left - view.x) / view.z;
-      const wy = (e.clientY - rect.top  - view.y) / view.z;
-      setMarquee({ startX: wx, startY: wy, curX: wx, curY: wy, additive: e.ctrlKey || e.metaKey });
+      if (e.shiftKey) {
+        const rect = deskRef.current.getBoundingClientRect();
+        const wx = (e.clientX - rect.left - view.x) / view.z;
+        const wy = (e.clientY - rect.top  - view.y) / view.z;
+        setMarquee({ startX: wx, startY: wy, curX: wx, curY: wy, additive: e.ctrlKey || e.metaKey });
+      } else {
+        setPanning(true);
+        // deselectOnClick: a plain click without drag should clear the
+        // selection (preserves the previous "click on empty canvas to
+        // deselect" behavior now that plain drag pans instead of marqueeing).
+        panRef.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, deselectOnClick: true };
+      }
     }
   };
 
@@ -833,15 +844,23 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
 
   useEffect(() => {
     if (!panning) return;
+    let moved = false;
     const move = (e) => {
       const p = panRef.current; if (!p) return;
-      setView(v => ({ ...v, x: p.vx + (e.clientX - p.sx), y: p.vy + (e.clientY - p.sy) }));
+      const dx = e.clientX - p.sx, dy = e.clientY - p.sy;
+      if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+      setView(v => ({ ...v, x: p.vx + dx, y: p.vy + dy }));
     };
-    const up = () => { setPanning(false); panRef.current = null; };
+    const up = () => {
+      const p = panRef.current;
+      if (p && p.deselectOnClick && !moved) setSelectedIds(new Set());
+      setPanning(false);
+      panRef.current = null;
+    };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-  }, [panning]);
+  }, [panning, setSelectedIds]);
 
   // Touch equivalent of the mouse pan effect above. Registered with
   // {passive: false} so preventDefault in touchmove reliably suppresses
@@ -998,7 +1017,7 @@ function Desktop({T, tweaks, currentFolder, folders, notes, allNotes, noteRefs,
     });
   };
 
-  const cursor = panning ? 'grabbing' : (spaceHeld ? 'grab' : 'default');
+  const cursor = panning ? 'grabbing' : (spaceHeld ? 'grab' : 'grab');
 
   return (
     <>
