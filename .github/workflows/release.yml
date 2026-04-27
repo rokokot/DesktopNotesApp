@@ -49,12 +49,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install snapcraft (Linux only)
-        # electron-builder's snap target needs the snapcraft CLI to package
-        # the .snap. snapd is preinstalled on ubuntu-latest runners.
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo snap install snapcraft --classic
-
       - name: Build (electron-builder picks the host platform)
         # --publish never tells electron-builder to JUST build, not try to publish to
         # GitHub itself. The release job below does the publishing, which keeps the
@@ -64,28 +58,6 @@ jobs:
           # Skip code-signing on macOS so the build doesn't fail without an Apple Dev cert.
           # Users get a Gatekeeper warning on first launch; right-click → Open bypasses it.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
-      - name: Locate snap file (Linux only)
-        # snapcore/action-publish wants a single path, no globs. Find it once
-        # so subsequent step references it via the output.
-        if: matrix.os == 'ubuntu-latest'
-        id: snap
-        run: echo "path=$(ls dist/*.snap | head -n 1)" >> "$GITHUB_OUTPUT"
-
-      - name: Publish snap to Snap Store (Linux only)
-        # SNAPCRAFT_STORE_CREDENTIALS is set in repo settings → Secrets and
-        # was generated locally via:
-        #   snapcraft export-login --snaps=desktop-notes-app --channels=stable -
-        # Snap publish happens here (not in the release job) because it doesn't
-        # affect the GitHub Release race we're fixing — snap distribution is
-        # independent of GitHub Releases.
-        if: matrix.os == 'ubuntu-latest'
-        uses: snapcore/action-publish@v1
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
-        with:
-          snap: ${{ steps.snap.outputs.path }}
-          release: stable
 
       - name: Upload built artifacts for the release job
         # Stash artifacts at the workflow level so the release job can pick
@@ -97,10 +69,9 @@ jobs:
           path: |
             dist/*.deb
             dist/*.AppImage
-            dist/*.snap
             dist/*.dmg
             dist/*.zip
-          if-no-files-found: ignore   # Linux won't have .dmg, Mac won't have .deb/.snap
+          if-no-files-found: ignore   # Linux won't have .dmg, Mac won't have .deb
 
   release:
     name: Create GitHub Release
@@ -119,7 +90,6 @@ jobs:
           files: |
             artifacts/**/*.deb
             artifacts/**/*.AppImage
-            artifacts/**/*.snap
             artifacts/**/*.dmg
             artifacts/**/*.zip
           fail_on_unmatched_files: false

@@ -34,12 +34,12 @@ npm test           # node --test tests/*.test.mjs
 ## Build
 
 ```bash
-npm run build:linux    # .deb / .AppImage / .snap → dist/
+npm run build:linux    # .deb / .AppImage → dist/
 npm run build:mac      # .dmg / .zip → dist/
 npm run build:icons    # regenerate build/icons/* from build/icon.svg
 ```
 
-Output binary names: `desktop-notes-app_<ver>_amd64.deb`, `Desktop Notes-<ver>.AppImage`, `Desktop Notes-<ver>.dmg`.
+Output names: `desktop-notes-app_<ver>_amd64.deb`, `Desktop Notes-<ver>.AppImage`, `Desktop Notes-<ver>.dmg`.
 
 ## Data
 
@@ -53,7 +53,7 @@ Output binary names: `desktop-notes-app_<ver>_amd64.deb`, `Desktop Notes-<ver>.A
 
 ## Release
 
-`.github/workflows/release.yml` triggers on `v*` tags: matrix build on ubuntu + macos, attaches artifacts to the GitHub Release. Snap publish step requires `SNAPCRAFT_STORE_CREDENTIALS` secret.
+`.github/workflows/release.yml` triggers on `v*` tags: matrix build on ubuntu + macos, attaches artifacts to the GitHub Release. `release-please.yml` watches `master` for conventional commits and maintains a release PR that bumps version + CHANGELOG.
 
 ## License
 

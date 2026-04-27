@@ -46,8 +46,7 @@
     "linux": {
       "target": [
         "deb",
-        "AppImage",
-        "snap"
+        "AppImage"
       ],
       "category": "Utility",
       "icon": "build/icons",
@@ -56,12 +55,6 @@
       "desktop": {
         "StartupWMClass": "desktop-notes-app"
       }
-    },
-    "snap": {
-      "grade": "stable",
-      "confinement": "strict",
-      "summary": "Spatial sticky-notes canvas for Linux",
-      "category": "productivity"
     },
     "mac": {
       "target": [
